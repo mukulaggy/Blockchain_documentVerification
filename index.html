@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blockchain Document Verification</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@1.8.0/dist/web3.min.js"></script>
+  <style>
+    :root {
+      --primary: #00f0ff;
+      --secondary: #0070f3;
+      --dark: #0a0e17;
+      --darker: #060a12;
+      --light: #e0f7ff;
+      --accent: #7928ca;
+      --success: #00c853;
+      --error: #ff3d71;
+      --glow: 0 0 10px rgba(0, 240, 255, 0.5), 0 0 20px rgba(0, 240, 255, 0.3);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', 'Roboto', sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, var(--darker) 0%, var(--dark) 100%);
+      color: var(--light);
+      min-height: 100vh;
+      padding: 2rem;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: 
+        radial-gradient(circle at 20% 30%, rgba(0, 112, 243, 0.1) 0%, transparent 20%),
+        radial-gradient(circle at 80% 70%, rgba(121, 40, 202, 0.1) 0%, transparent 20%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      background: rgba(10, 14, 23, 0.7);
+      backdrop-filter: blur(10px);
+      border-radius: 20px;
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    }
+
+    header {
+      margin-bottom: 3rem;
+      text-align: center;
+      position: relative;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      position: relative;
+      display: inline-block;
+    }
+
+    h1::after {
+      content: "";
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 100px;
+      height: 3px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border-radius: 3px;
+    }
+
+    .status-indicator {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      font-size: 0.9rem;
+      opacity: 0.8;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background-color: var(--error);
+      margin-right: 8px;
+      box-shadow: 0 0 5px var(--error);
+    }
+
+    .status-dot.connected {
+      background-color: var(--success);
+      box-shadow: 0 0 5px var(--success);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 2rem;
+    }
+
+    .card {
+      background: rgba(10, 14, 23, 0.5);
+      border-radius: 16px;
+      padding: 2rem;
+      transition: all 0.3s ease;
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: var(--glow);
+      border-color: rgba(0, 240, 255, 0.3);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+    }
+
+    h2::before {
+      content: "";
+      display: inline-block;
+      width: 24px;
+      height: 24px;
+      margin-right: 10px;
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    .register h2::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2300f0ff'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' /%3E%3C/svg%3E");
+    }
+
+    .verify h2::before {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2300f0ff'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z' /%3E%3C/svg%3E");
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+      position: relative;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 0.5rem;
+      font-size: 0.9rem;
+      color: rgba(224, 247, 255, 0.7);
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      border-radius: 8px;
+      color: var(--light);
+      font-size: 1rem;
+      transition: all 0.3s ease;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.2);
+    }
+
+    .file-input {
+      position: relative;
+      width: 100%;
+    }
+
+    .file-input input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      z-index: 2;
+    }
+
+    .file-input-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(0, 240, 255, 0.3);
+      border-radius: 8px;
+      color: rgba(224, 247, 255, 0.7);
+      font-size: 1rem;
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+
+    .file-input-label::before {
+      content: "";
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2300f0ff'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12' /%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    .file-input:hover .file-input-label {
+      border-color: var(--primary);
+      background: rgba(0, 240, 255, 0.05);
+    }
+
+    .file-name {
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+      color: var(--primary);
+      word-break: break-all;
+    }
+
+    button {
+      width: 100%;
+      padding: 0.75rem 1.5rem;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      border: none;
+      border-radius: 8px;
+      color: var(--dark);
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    button::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: all 0.5s ease;
+    }
+
+    button:hover::before {
+      left: 100%;
+    }
+
+    button:hover {
+      box-shadow: var(--glow);
+      transform: translateY(-2px);
+    }
+
+    #verificationResult {
+      margin-top: 1.5rem;
+      padding: 1.5rem;
+      border-radius: 8px;
+      background: rgba(10, 14, 23, 0.5);
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      font-size: 0.95rem;
+      line-height: 1.6;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.3s ease;
+    }
+
+    #verificationResult.active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .result-valid {
+      border-color: rgba(0, 200, 83, 0.3) !important;
+    }
+
+    .result-invalid {
+      border-color: rgba(255, 61, 113, 0.3) !important;
+    }
+
+    .hash-display {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: rgba(224, 247, 255, 0.6);
+      word-break: break-all;
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 4px;
+      display: none;
+    }
+
+    .hash-display.active {
+      display: block;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(0, 240, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .result-item {
+      display: flex;
+      margin-bottom: 0.5rem;
+    }
+
+    .result-label {
+      min-width: 100px;
+      color: rgba(224, 247, 255, 0.6);
+    }
+
+    .result-value {
+      font-weight: 500;
+    }
+
+    .blockchain-icon {
+      position: absolute;
+      bottom: 20px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      opacity: 0.1;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2300f0ff'%3E%3Cpath d='M12 22L3 17V7L12 2L21 7V17L12 22ZM12 20L19 16V8L12 4L5 8V16L12 20ZM12 15C10.6193 15 9.5 13.8807 9.5 12.5C9.5 11.1193 10.6193 10 12 10C13.3807 10 14.5 11.1193 14.5 12.5C14.5 13.8807 13.3807 15 12 15Z'%3E%3C/path%3E%3C/svg%3E");
+      background-size: contain;
+      background-repeat: no-repeat;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .container {
+        padding: 1rem;
+      }
+      
+      h1 {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Blockchain Document Verification</h1>
+      <p>Securely register and verify documents using blockchain technology</p>
+      <div class="status-indicator">
+        <span class="status-dot" id="connectionStatus"></span>
+        <span id="networkStatus">Connecting to blockchain...</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card register">
+        <h2>Register Document</h2>
+        <div class="blockchain-icon"></div>
+        
+        <div class="form-group">
+          <label for="documentFile">Upload Document</label>
+          <div class="file-input">
+            <input type="file" id="documentFile" />
+            <div class="file-input-label">Choose a file to register</div>
+          </div>
+          <div class="file-name" id="registerFileName"></div>
+          <div class="hash-display" id="registerHash"></div>
+        </div>
+        
+        <div class="form-group">
+          <label for="docType">Document Type</label>
+          <div class="input-wrapper">
+            <input type="text" id="docType" placeholder="Certificate, Contract, License, etc." />
+          </div>
+        </div>
+        
+        <button id="registerBtn" onclick="registerDocument()">Register on Blockchain</button>
+      </div>
+
+      <div class="card verify">
+        <h2>Verify Document</h2>
+        <div class="blockchain-icon"></div>
+        
+        <div class="form-group">
+          <label for="verifyFile">Upload Document to Verify</label>
+          <div class="file-input">
+            <input type="file" id="verifyFile" />
+            <div class="file-input-label">Choose a file to verify</div>
+          </div>
+          <div class="file-name" id="verifyFileName"></div>
+          <div class="hash-display" id="verifyHash"></div>
+        </div>
+        
+        <button id="verifyBtn" onclick="verifyDocument()">Verify Authenticity</button>
+        
+        <div id="verificationResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const contractAddress = "0xa5ad71a28aeaa9d1699840420c5df6b818170ea0";
+    const contractABI = [
+      {
+        anonymous: false,
+        inputs: [
+          {
+            indexed: true,
+            internalType: "bytes32",
+            name: "docHash",
+            type: "bytes32",
+          },
+          {
+            indexed: true,
+            internalType: "address",
+            name: "owner",
+            type: "address",
+          },
+          {
+            indexed: false,
+            internalType: "uint256",
+            name: "timestamp",
+            type: "uint256",
+          },
+        ],
+        name: "DocumentRegistered",
+        type: "event",
+      },
+      {
+        anonymous: false,
+        inputs: [
+          {
+            indexed: true,
+            internalType: "bytes32",
+            name: "docHash",
+            type: "bytes32",
+          },
+          {
+            indexed: false,
+            internalType: "bool",
+            name: "isValid",
+            type: "bool",
+          },
+        ],
+        name: "DocumentVerified",
+        type: "event",
+      },
+      {
+        inputs: [
+          {
+            internalType: "bytes32",
+            name: "_docHash",
+            type: "bytes32",
+          },
+          {
+            internalType: "string",
+            name: "_documentType",
+            type: "string",
+          },
+        ],
+        name: "registerDocument",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function",
+      },
+      {
+        inputs: [
+          {
+            internalType: "string",
+            name: "_content",
+            type: "string",
+          },
+        ],
+        name: "calculateHash",
+        outputs: [
+          {
+            internalType: "bytes32",
+            name: "",
+            type: "bytes32",
+          },
+        ],
+        stateMutability: "pure",
+        type: "function",
+      },
+      {
+        inputs: [],
+        name: "getUserDocuments",
+        outputs: [
+          {
+            internalType: "bytes32[]",
+            name: "",
+            type: "bytes32[]",
+          },
+        ],
+        stateMutability: "view",
+        type: "function",
+      },
+      {
+        inputs: [
+          {
+            internalType: "bytes32",
+            name: "_docHash",
+            type: "bytes32",
+          },
+        ],
+        name: "verifyDocument",
+        outputs: [
+          {
+            internalType: "bool",
+            name: "",
+            type: "bool",
+          },
+          {
+            internalType: "uint256",
+            name: "",
+            type: "uint256",
+          },
+          {
+            internalType: "address",
+            name: "",
+            type: "address",
+          },
+          {
+            internalType: "string",
+            name: "",
+            type: "string",
+          },
+        ],
+        stateMutability: "view",
+        type: "function",
+      },
+    ];
+
+    let web3;
+    let contract;
+    const statusDot = document.getElementById('connectionStatus');
+    const networkStatus = document.getElementById('networkStatus');
+    const registerFileInput = document.getElementById('documentFile');
+    const verifyFileInput = document.getElementById('verifyFile');
+    const registerFileName = document.getElementById('registerFileName');
+    const verifyFileName = document.getElementById('verifyFileName');
+    const registerHash = document.getElementById('registerHash');
+    const verifyHash = document.getElementById('verifyHash');
+    const registerBtn = document.getElementById('registerBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const verificationResult = document.getElementById('verificationResult');
+
+    // Update file name display when files are selected
+    registerFileInput.addEventListener('change', function() {
+      if (this.files.length > 0) {
+        registerFileName.textContent = this.files[0].name;
+        calculateAndDisplayHash(this.files[0], registerHash);
+      } else {
+        registerFileName.textContent = '';
+        registerHash.textContent = '';
+        registerHash.classList.remove('active');
+      }
+    });
+
+    verifyFileInput.addEventListener('change', function() {
+      if (this.files.length > 0) {
+        verifyFileName.textContent = this.files[0].name;
+        calculateAndDisplayHash(this.files[0], verifyHash);
+      } else {
+        verifyFileName.textContent = '';
+        verifyHash.textContent = '';
+        verifyHash.classList.remove('active');
+      }
+    });
+
+    async function calculateAndDisplayHash(file, displayElement) {
+      const hash = await calculateFileHash(file);
+      displayElement.textContent = `Document Hash: ${hash}`;
+      displayElement.classList.add('active');
+      return hash;
+    }
+
+    async function init() {
+      if (!window.ethereum) {
+        updateConnectionStatus(false, "MetaMask not detected");
+        return;
+      }
+
+      web3 = new Web3(window.ethereum);
+
+      try {
+        // Request account access
+        const accounts = await window.ethereum.request({
+          method: "eth_requestAccounts",
+        });
+
+        // Verify network
+        const chainId = await web3.eth.getChainId();
+        console.log("Connected to network with chain ID:", chainId);
+
+        if (chainId !== 11155111) {
+          // Sepolia
+          try {
+            await window.ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: "0xaa36a7" }], // Sepolia
+            });
+          } catch (switchError) {
+            updateConnectionStatus(false, "Please switch to Sepolia network");
+            return;
+          }
+        }
+
+        web3.eth.defaultAccount = accounts[0];
+        contract = new web3.eth.Contract(contractABI, contractAddress);
+
+        // Verify contract exists
+        const code = await web3.eth.getCode(contractAddress);
+        console.log("Contract code length:", code.length);
+        if (code === "0x") {
+          throw new Error(
+            `No contract deployed at ${contractAddress} on Sepolia`
+          );
+        }
+        
+        updateConnectionStatus(true, "Connected to Sepolia");
+        console.log("Contract initialized successfully");
+      } catch (error) {
+        console.error("Initialization failed:", error);
+        updateConnectionStatus(false, "Connection failed: " + error.message);
+      }
+    }
+
+    function updateConnectionStatus(isConnected, message) {
+      if (isConnected) {
+        statusDot.classList.add('connected');
+      } else {
+        statusDot.classList.remove('connected');
+      }
+      networkStatus.textContent = message;
+    }
+
+    async function calculateFileHash(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+          const buffer = e.target.result;
+          const hashBuffer = await crypto.subtle.digest("SHA-256", buffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          const hashHex = hashArray
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+          resolve("0x" + hashHex);
+        };
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    async function registerDocument() {
+      try {
+        updateButtonState(registerBtn, true, "Registering...");
+        
+        const file = document.getElementById("documentFile").files[0];
+        const docType = document.getElementById("docType").value;
+
+        if (!file || !docType) {
+          throw new Error("Please select a file and enter a document type");
+        }
+
+        const hash = await calculateFileHash(file);
+        console.log("Registering document with hash:", hash);
+
+        const receipt = await contract.methods
+          .registerDocument(hash, docType)
+          .send({
+            from: web3.eth.defaultAccount,
+            gas: 500000,
+          });
+
+        console.log("Transaction receipt:", receipt);
+        showNotification("Document registered successfully!", "success");
+      } catch (error) {
+        console.error("Registration failed:", error);
+        showNotification("Registration failed: " + error.message, "error");
+      } finally {
+        updateButtonState(registerBtn, false, "Register on Blockchain");
+      }
+    }
+
+    async function verifyDocument() {
+      try {
+        updateButtonState(verifyBtn, true, "Verifying...");
+        verificationResult.classList.remove('active', 'result-valid', 'result-invalid');
+        
+        const fileInput = document.getElementById("verifyFile");
+        if (!fileInput.files?.length) {
+          throw new Error("Please select a file first");
+        }
+
+        // Get file and calculate hash
+        const file = fileInput.files[0];
+        const hash = await calculateFileHash(file);
+        console.log("Verifying hash:", hash);
+
+        // Get network info for debugging
+        const chainId = await web3.eth.getChainId();
+        const blockNumber = await web3.eth.getBlockNumber();
+
+        // Call contract with robust error handling
+        const result = await new Promise(async (resolve, reject) => {
+          try {
+            // First try the normal call
+            const normalResult = await contract.methods
+              .verifyDocument(hash)
+              .call({
+                from: web3.eth.defaultAccount,
+                gas: 500000,
+              });
+            resolve(normalResult);
+          } catch (error) {
+            console.log("Standard call failed, trying alternative...");
+
+            // Fallback: Use low-level call
+            const data = contract.methods.verifyDocument(hash).encodeABI();
+            const response = await web3.eth.call({
+              to: contractAddress,
+              data: data,
+              from: web3.eth.defaultAccount,
+              gas: 500000,
+            });
+
+            // Manual decoding
+            const decoded = web3.eth.abi.decodeParameters(
+              ["bool", "uint256", "address", "string"],
+              response
+            );
+            resolve(decoded);
+          }
+        });
+
+        console.log("Verification result:", result);
+
+        // Handle response (works for both call methods)
+        const exists = result[0] || result.exists;
+        const timestamp = result[1] || result.timestamp;
+        const owner = result[2] || result.owner;
+        const docType = result[3] || result.docType || "N/A";
+
+        // Display results
+        if (exists) {
+          const date = new Date(timestamp * 1000);
+          verificationResult.innerHTML = `
+            <div class="result-item">
+              <div class="result-label">Status:</div>
+              <div class="result-value" style="color: var(--success);">✓ Verified</div>
+            </div>
+            <div class="result-item">
+              <div class="result-label">Registered:</div>
+              <div class="result-value">${date.toLocaleString()}</div>
+            </div>
+            <div class="result-item">
+              <div class="result-label">Owner:</div>
+              <div class="result-value">${shortenAddress(owner)}</div>
+            </div>
+            <div class="result-item">
+              <div class="result-label">Type:</div>
+              <div class="result-value">${docType}</div>
+            </div>
+            <div class="result-item">
+              <div class="result-label">Network:</div>
+              <div class="result-value">Sepolia (${chainId})</div>
+            </div>
+            <div class="result-item">
+              <div class="result-label">Block:</div>
+              <div class="result-value">${blockNumber}</div>
+            </div>
+          `;
+          verificationResult.classList.add('result-valid');
+        } else {
+          verificationResult.innerHTML = `
+            <div class="result-item">
+              <div class="result-value" style="color: var(--error);">❌ Document not found in registry</div>
+            </div>
+            <div class="result-item">
+              <div class="result-value">This document has not been registered on the blockchain.</div>
+            </div>
+          `;
+          verificationResult.classList.add('result-invalid');
+        }
+        
+        verificationResult.classList.add('active');
+      } catch (error) {
+        console.error("Full error details:", {
+          error,
+          contractAddress,
+          network: await web3.eth.net.getNetworkType(),
+          chainId: await web3.eth.getChainId(),
+        });
+        
+        verificationResult.innerHTML = `
+          <div class="result-item">
+            <div class="result-value" style="color: var(--error);">❌ Verification failed</div>
+          </div>
+          <div class="result-item">
+            <div class="result-value">${error.message}</div>
+          </div>
+        `;
+        verificationResult.classList.add('active', 'result-invalid');
+      } finally {
+        updateButtonState(verifyBtn, false, "Verify Authenticity");
+      }
+    }
+
+    function updateButtonState(button, isLoading, text) {
+      if (isLoading) {
+        button.innerHTML = `<span class="loading"></span>${text}`;
+        button.disabled = true;
+      } else {
+        button.innerHTML = text;
+        button.disabled = false;
+      }
+    }
+
+    function showNotification(message, type) {
+      // Create notification element
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.innerHTML = message;
+      document.body.appendChild(notification);
+      
+      // Animate in
+      setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+        notification.style.opacity = '1';
+      }, 10);
+      
+      // Remove after delay
+      setTimeout(() => {
+        notification.style.transform = 'translateX(100%)';
+        notification.style.opacity = '0';
+        setTimeout(() => {
+          notification.remove();
+        }, 300);
+      }, 5000);
+    }
+
+    function shortenAddress(address) {
+      return address.substring(0, 6) + '...' + address.substring(address.length - 4);
+    }
+
+    // Add this temporary test function
+    async function testVerification() {
+      const testHash = web3.utils.keccak256("test");
+      console.log("Testing with hash:", testHash);
+      try {
+        const result = await contract.methods.verifyDocument(testHash).call();
+        console.log("Test result:", result);
+      } catch (error) {
+        console.error("Test verification failed:", error);
+      }
+    }
+
+    // Add styles for notifications
+    const style = document.createElement('style');
+    style.textContent = `
+      .notification {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        color: white;
+        font-weight: 500;
+        z-index: 1000;
+        transform: translateX(100%);
+        opacity: 0;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        max-width: 300px;
+      }
+      
+      .notification.success {
+        background: linear-gradient(90deg, var(--success), #00e676);
+      }
+      
+      .notification.error {
+        background: linear-gradient(90deg, var(--error), #ff6b9b);
+      }
+    `;
+    document.head.appendChild(style);
+
+    // Call it after initialization
+    window.onload = async () => {
+      await init();
+      await testVerification();
+    };
+  </script>
+</body>
+</html>
